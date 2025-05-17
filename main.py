@@ -1,265 +1,152 @@
 import pygame
 import sys
-import arabic_reshaper
-from bidi.algorithm import get_display
 import json
-from flask import Flask, send_from_directory, jsonify, request
-from flask_cors import CORS
-import threading
-import os
-
-# إعداد Flask
-app = Flask(__name__, static_url_path='')
-CORS(app, resources={
-    r"/*": {
-        "origins": "*",
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
-    }
-})
+from qassam_fighter import QassamFighter, Bullet
+from enemies import Enemy, EnemyBullet
 
 # تهيئة pygame
 pygame.init()
+pygame.font.init()
 
-# ثوابت اللعبة
+# إعدادات الشاشة
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
-FPS = 60
-GRAVITY = 0.8
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("مقاوم القسام")
 
 # الألوان
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
-BLUE = (0, 0, 255)
 
-# متغيرات عامة
-game_instance = None
-
-@app.route('/')
-def root():
-    return send_from_directory('.', 'index.html')
-
-@app.route('/<path:path>')
-def serve_static(path):
-    return send_from_directory('.', path)
-
-@app.route('/start-game', methods=['POST', 'OPTIONS'])
-def start_game_route():
-    if request.method == 'OPTIONS':
-        return '', 204
-    
-    global game_instance
-    if game_instance is None:
-        game_thread = threading.Thread(target=start_game)
-        game_thread.daemon = True
-        game_thread.start()
-    return jsonify({"status": "success", "message": "تم بدء اللعبة بنجاح"})
-
-@app.route('/levels', methods=['GET', 'OPTIONS'])
-def get_levels():
-    if request.method == 'OPTIONS':
-        return '', 204
-        
-    try:
-        with open('levels.json', 'r', encoding='utf-8') as f:
-            levels_data = json.load(f)
-        return jsonify(levels_data['levels'])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-class Enemy(pygame.sprite.Sprite):
-    def __init__(self, enemy_type, x, y, health):
-        super().__init__()
-        self.type = enemy_type
-        self.health = health
-        
-        # تحديد حجم ولون العدو حسب نوعه
-        if enemy_type == "جندي":
-            self.image = pygame.Surface((30, 50))
-            self.image.fill(RED)
-        elif enemy_type == "قناص":
-            self.image = pygame.Surface((20, 40))
-            self.image.fill((150, 0, 0))
-        elif enemy_type == "دبابة":
-            self.image = pygame.Surface((80, 40))
-            self.image.fill((100, 100, 100))
-        else:
-            self.image = pygame.Surface((30, 30))
-            self.image.fill(RED)
-            
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-        self.direction = 1
-        self.move_counter = 0
-
-    def update(self):
-        # حركة بسيطة للأعداء
-        self.rect.x += self.direction
-        self.move_counter += 1
-        if self.move_counter >= 100:
-            self.direction *= -1
-            self.move_counter = 0
-
-class Platform(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height):
-        super().__init__()
-        self.image = pygame.Surface((width, height))
-        self.image.fill((100, 50, 0))
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
-class Collectible(pygame.sprite.Sprite):
-    def __init__(self, item_type, x, y):
-        super().__init__()
-        self.type = item_type
-        self.image = pygame.Surface((20, 20))
-        
-        if item_type == "سلاح":
-            self.image.fill((255, 215, 0))  # ذهبي
-        elif item_type == "ذخيرة":
-            self.image.fill((192, 192, 192))  # فضي
-        elif item_type == "صحة":
-            self.image.fill((0, 255, 0))  # أخضر
-        
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = pygame.Surface((30, 50))
-        self.image.fill(GREEN)
-        self.rect = self.image.get_rect()
-        self.rect.x = 50
-        self.rect.y = SCREEN_HEIGHT - 100
-        self.velocity_y = 0
-        self.jumping = False
-        self.health = 100
-        self.ammo = 50
-
-    def update(self):
-        # الحركة والقفز
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_RIGHT]:
-            self.rect.x += 5
-        if keys[pygame.K_LEFT]:
-            self.rect.x -= 5
-        if keys[pygame.K_SPACE] and not self.jumping:
-            self.velocity_y = -15
-            self.jumping = True
-
-        # تطبيق الجاذبية
-        self.velocity_y += GRAVITY
-        self.rect.y += self.velocity_y
-
-        # التحقق من الأرض
-        if self.rect.bottom > SCREEN_HEIGHT:
-            self.rect.bottom = SCREEN_HEIGHT
-            self.velocity_y = 0
-            self.jumping = False
+# تحميل الخلفية (مؤقتاً نستخدم لون)
+background_color = (100, 150, 255)
 
 class Game:
     def __init__(self):
-        self.load_levels()
+        self.player = QassamFighter()
         self.current_level = 1
-        self.setup_level(self.current_level)
-        self.font = pygame.font.Font(None, 36)
+        self.enemies = []
+        self.player_bullets = []
+        self.enemy_bullets = []
+        self.score = 0
+        self.font = pygame.font.SysFont('arial', 30)
+        self.load_level(self.current_level)
 
-    def load_levels(self):
-        with open('levels.json', 'r', encoding='utf-8') as f:
-            self.levels_data = json.load(f)
-
-    def setup_level(self, level_id):
-        self.all_sprites = pygame.sprite.Group()
-        self.enemies = pygame.sprite.Group()
-        self.platforms = pygame.sprite.Group()
-        self.collectibles = pygame.sprite.Group()
+    def load_level(self, level):
+        self.enemies.clear()
+        self.player_bullets.clear()
+        self.enemy_bullets.clear()
         
-        self.player = Player()
-        self.all_sprites.add(self.player)
-        
-        level = next((l for l in self.levels_data['levels'] if l['id'] == level_id), None)
-        if level:
-            # إضافة المنصات
-            for platform in level.get('platforms', []):
-                p = Platform(platform['x'], platform['y'], platform['width'], platform['height'])
-                self.platforms.add(p)
-                self.all_sprites.add(p)
-            
-            # إضافة الأعداء
-            for enemy in level.get('enemies', []):
-                e = Enemy(enemy['type'], enemy['x'], enemy['y'], enemy['health'])
-                self.enemies.add(e)
-                self.all_sprites.add(e)
-            
-            # إضافة العناصر القابلة للجمع
-            for item in level.get('collectibles', []):
-                c = Collectible(item['type'], item['x'], item['y'])
-                self.collectibles.add(c)
-                self.all_sprites.add(c)
+        # إضافة الأعداء حسب المستوى
+        if level == 1:
+            self.enemies.append(Enemy(400, 500, "جندي"))
+            self.enemies.append(Enemy(600, 500, "جندي"))
+        elif level == 2:
+            self.enemies.append(Enemy(300, 500, "جندي"))
+            self.enemies.append(Enemy(700, 400, "قناص"))
+        elif level == 3:
+            self.enemies.append(Enemy(500, 500, "دبابة"))
+            self.enemies.append(Enemy(300, 500, "جندي"))
+            self.enemies.append(Enemy(600, 400, "قناص"))
 
-    def draw_text(self, text, x, y):
-        reshaped_text = arabic_reshaper.reshape(text)
-        bidi_text = get_display(reshaped_text)
-        text_surface = self.font.render(bidi_text, True, BLACK)
-        screen.blit(text_surface, (x, y))
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_CONTROL:
+                    bullet = self.player.shoot()
+                    if bullet:
+                        self.player_bullets.append(bullet)
+                elif event.key == pygame.K_n:  # للتجربة: الانتقال للمستوى التالي
+                    self.current_level += 1
+                    self.load_level(self.current_level)
+        return True
+
+    def update(self):
+        # تحديث اللاعب
+        self.player.update()
+
+        # تحديث الأعداء
+        for enemy in self.enemies:
+            bullet = enemy.update(self.player.x, self.player.y)
+            if bullet:
+                self.enemy_bullets.append(bullet)
+
+        # تحديث الرصاص
+        for bullet in self.player_bullets[:]:
+            bullet.move()
+            # التحقق من إصابة العدو
+            for enemy in self.enemies[:]:
+                if bullet.rect.colliderect(enemy.rect):
+                    if enemy.take_damage(25):
+                        self.enemies.remove(enemy)
+                        self.score += 100
+                    if bullet in self.player_bullets:
+                        self.player_bullets.remove(bullet)
+                    break
+
+        # تحديث رصاص العدو
+        for bullet in self.enemy_bullets[:]:
+            bullet.move()
+            if bullet.rect.colliderect(self.player.rect):
+                self.player.health -= 10
+                self.enemy_bullets.remove(bullet)
+
+        # إزالة الرصاص خارج الشاشة
+        self.player_bullets = [b for b in self.player_bullets if 0 < b.x < SCREEN_WIDTH]
+        self.enemy_bullets = [b for b in self.enemy_bullets if 0 < b.x < SCREEN_WIDTH]
+
+        # التحقق من انتهاء المستوى
+        if not self.enemies:
+            self.current_level += 1
+            self.load_level(self.current_level)
+
+    def draw(self):
+        # رسم الخلفية
+        screen.fill(background_color)
+        
+        # رسم اللاعب
+        self.player.draw(screen)
+        
+        # رسم الأعداء
+        for enemy in self.enemies:
+            enemy.draw(screen)
+        
+        # رسم الرصاص
+        for bullet in self.player_bullets:
+            bullet.draw(screen)
+        for bullet in self.enemy_bullets:
+            bullet.draw(screen)
+
+        # رسم معلومات اللعبة
+        score_text = self.font.render(f"النقاط: {self.score}", True, BLACK)
+        level_text = self.font.render(f"المرحلة: {self.current_level}", True, BLACK)
+        health_text = self.font.render(f"الصحة: {self.player.health}", True, BLACK)
+        ammo_text = self.font.render(f"الذخيرة: {self.player.ammo}", True, BLACK)
+        
+        screen.blit(score_text, (10, 10))
+        screen.blit(level_text, (10, 40))
+        screen.blit(health_text, (10, 70))
+        screen.blit(ammo_text, (10, 100))
+
+        pygame.display.flip()
 
     def run(self):
-        global screen
-        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("مقاوم القسام")
         clock = pygame.time.Clock()
-        
         running = True
+        
         while running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_n:  # للانتقال إلى المرحلة التالية (مؤقتاً للتجربة)
-                        self.current_level += 1
-                        if self.current_level <= len(self.levels_data['levels']):
-                            self.setup_level(self.current_level)
+            running = self.handle_events()
+            self.update()
+            self.draw()
+            clock.tick(60)
 
-            # تحديث
-            self.all_sprites.update()
-
-            # التصادم مع المنصات
-            hits = pygame.sprite.spritecollide(self.player, self.platforms, False)
-            if hits:
-                self.player.rect.bottom = hits[0].rect.top
-                self.player.velocity_y = 0
-                self.player.jumping = False
-
-            # جمع العناصر
-            collectible_hits = pygame.sprite.spritecollide(self.player, self.collectibles, True)
-            for hit in collectible_hits:
-                if hit.type == "صحة":
-                    self.player.health = min(100, self.player.health + 20)
-                elif hit.type == "ذخيرة":
-                    self.player.ammo += 30
-
-            # الرسم
-            screen.fill(WHITE)
-            self.all_sprites.draw(screen)
-            self.draw_text(f"المرحلة: {self.current_level}", 10, 10)
-            self.draw_text(f"الصحة: {self.player.health}", 10, 40)
-            self.draw_text(f"الذخيرة: {self.player.ammo}", 10, 70)
-
-            pygame.display.flip()
-            clock.tick(FPS)
-
-def start_game():
-    global game_instance
-    game_instance = Game()
-    game_instance.run()
-    pygame.quit()
-
+# تشغيل اللعبة
 if __name__ == "__main__":
-    print("Starting server at http://localhost:5000")
-    app.run(port=5000, threaded=True) 
+    game = Game()
+    game.run()
+    pygame.quit()
+    sys.exit() 
