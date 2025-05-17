@@ -1,0 +1,5 @@
+pygame==2.5.2
+pillow==10.1.0
+pygame-gui==0.6.9
+arabic-reshaper==3.0.0
+python-bidi==0.4.2 

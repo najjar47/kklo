@@ -1,0 +1,30 @@
+{
+    "levels": [
+        {
+            "id": 1,
+            "name": "بداية المقاومة",
+            "description": "تجاوز الحواجز الأولى",
+            "enemies": 2,
+            "platforms": [
+                {"x": 100, "y": 400, "width": 200, "height": 20},
+                {"x": 400, "y": 300, "width": 200, "height": 20}
+            ]
+        },
+        {
+            "id": 2,
+            "name": "المواجهة الأولى",
+            "description": "قم بتحرير نقطة المراقبة",
+            "enemies": 3,
+            "platforms": [
+                {"x": 200, "y": 350, "width": 150, "height": 20},
+                {"x": 500, "y": 250, "width": 150, "height": 20}
+            ]
+        }
+    ],
+    "final_boss": {
+        "name": "المواجهة النهائية",
+        "description": "النصر النهائي",
+        "health": 100,
+        "attack_power": 20
+    }
+} 
