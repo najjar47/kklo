@@ -3,9 +3,20 @@ import sys
 import arabic_reshaper
 from bidi.algorithm import get_display
 import json
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from flask import Flask, send_from_directory, jsonify, request
+from flask_cors import CORS
 import threading
 import os
+
+# إعداد Flask
+app = Flask(__name__, static_url_path='')
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 # تهيئة pygame
 pygame.init()
@@ -22,6 +33,41 @@ BLACK = (0, 0, 0)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
+
+# متغيرات عامة
+game_instance = None
+
+@app.route('/')
+def root():
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory('.', path)
+
+@app.route('/start-game', methods=['POST', 'OPTIONS'])
+def start_game_route():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    global game_instance
+    if game_instance is None:
+        game_thread = threading.Thread(target=start_game)
+        game_thread.daemon = True
+        game_thread.start()
+    return jsonify({"status": "success", "message": "تم بدء اللعبة بنجاح"})
+
+@app.route('/levels', methods=['GET', 'OPTIONS'])
+def get_levels():
+    if request.method == 'OPTIONS':
+        return '', 204
+        
+    try:
+        with open('levels.json', 'r', encoding='utf-8') as f:
+            levels_data = json.load(f)
+        return jsonify(levels_data['levels'])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, enemy_type, x, y, health):
@@ -208,50 +254,12 @@ class Game:
             pygame.display.flip()
             clock.tick(FPS)
 
-class GameHandler(SimpleHTTPRequestHandler):
-    def do_POST(self):
-        if self.path == '/start-game':
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            response = {"status": "success", "message": "Game started"}
-            self.wfile.write(json.dumps(response).encode())
-            game_thread = threading.Thread(target=start_game)
-            game_thread.start()
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def do_GET(self):
-        if self.path == '/levels':
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            with open('levels.json', 'r', encoding='utf-8') as f:
-                levels_data = json.load(f)
-            self.wfile.write(json.dumps(levels_data['levels']).encode())
-        else:
-            return SimpleHTTPRequestHandler.do_GET(self)
-
 def start_game():
-    game = Game()
-    game.run()
+    global game_instance
+    game_instance = Game()
+    game_instance.run()
     pygame.quit()
 
-def run_server():
-    server_address = ('', 8000)
-    httpd = HTTPServer(server_address, GameHandler)
-    print("Server running at http://localhost:8000")
-    httpd.serve_forever()
-
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=run_server)
-    server_thread.daemon = True
-    server_thread.start()
-    
-    try:
-        while True:
-            pass
-    except KeyboardInterrupt:
-        print("\nShutting down server...")
-        sys.exit(0) 
+    print("Starting server at http://localhost:5000")
+    app.run(port=5000, threaded=True) 
