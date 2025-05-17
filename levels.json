@@ -4,27 +4,96 @@
             "id": 1,
             "name": "بداية المقاومة",
             "description": "تجاوز الحواجز الأولى",
-            "enemies": 2,
+            "enemies": [
+                {"type": "جندي", "x": 300, "y": 400, "health": 50},
+                {"type": "جندي", "x": 500, "y": 400, "health": 50}
+            ],
             "platforms": [
                 {"x": 100, "y": 400, "width": 200, "height": 20},
                 {"x": 400, "y": 300, "width": 200, "height": 20}
+            ],
+            "collectibles": [
+                {"type": "سلاح", "x": 150, "y": 350},
+                {"type": "ذخيرة", "x": 450, "y": 250}
             ]
         },
         {
             "id": 2,
             "name": "المواجهة الأولى",
             "description": "قم بتحرير نقطة المراقبة",
-            "enemies": 3,
+            "enemies": [
+                {"type": "جندي", "x": 300, "y": 350, "health": 60},
+                {"type": "قناص", "x": 600, "y": 200, "health": 40}
+            ],
             "platforms": [
                 {"x": 200, "y": 350, "width": 150, "height": 20},
                 {"x": 500, "y": 250, "width": 150, "height": 20}
+            ],
+            "collectibles": [
+                {"type": "صحة", "x": 250, "y": 300}
+            ]
+        },
+        {
+            "id": 3,
+            "name": "معركة الشوارع",
+            "description": "تحرير الشارع الرئيسي",
+            "enemies": [
+                {"type": "دورية", "x": 400, "y": 400, "health": 80},
+                {"type": "جندي", "x": 600, "y": 400, "health": 50},
+                {"type": "قناص", "x": 700, "y": 200, "health": 40}
+            ],
+            "platforms": [
+                {"x": 100, "y": 300, "width": 100, "height": 20},
+                {"x": 300, "y": 250, "width": 100, "height": 20},
+                {"x": 500, "y": 200, "width": 100, "height": 20}
+            ]
+        },
+        {
+            "id": 4,
+            "name": "اقتحام المستوطنة",
+            "description": "تجاوز الأسلاك الشائكة والحواجز",
+            "enemies": [
+                {"type": "حارس", "x": 300, "y": 400, "health": 70},
+                {"type": "كلب_حراسة", "x": 500, "y": 400, "health": 30}
+            ],
+            "obstacles": [
+                {"type": "اسلاك_شائكة", "x": 200, "y": 450},
+                {"type": "حاجز", "x": 400, "y": 400}
+            ]
+        },
+        {
+            "id": 5,
+            "name": "معركة المخيم",
+            "description": "الدفاع عن المخيم",
+            "enemies": [
+                {"type": "دبابة", "x": 600, "y": 400, "health": 200},
+                {"type": "جندي", "x": 400, "y": 400, "health": 50},
+                {"type": "جندي", "x": 500, "y": 400, "health": 50}
+            ],
+            "collectibles": [
+                {"type": "صاروخ_مضاد_للدروع", "x": 200, "y": 350},
+                {"type": "اسعافات", "x": 300, "y": 350}
             ]
         }
     ],
     "final_boss": {
         "name": "المواجهة النهائية",
         "description": "النصر النهائي",
-        "health": 100,
-        "attack_power": 20
+        "health": 500,
+        "attack_power": 50,
+        "special_attacks": [
+            {"name": "قصف_مدفعي", "damage": 80},
+            {"name": "طائرات_استطلاع", "damage": 40}
+        ],
+        "rewards": {
+            "points": 10000,
+            "unlock": "مرحلة_سرية"
+        }
+    },
+    "game_settings": {
+        "player_initial_health": 100,
+        "player_initial_ammo": 50,
+        "difficulty_increase_rate": 1.2,
+        "checkpoint_frequency": 5
     }
 } 
